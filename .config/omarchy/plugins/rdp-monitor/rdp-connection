@@ -11,7 +11,7 @@ else
 fi
 
 # File to persist last seen IPs for notification handling
-STATE_FILE="$HOME/.local/state/omarchy/rdp-session"
+STATE_FILE="$HOME/.local/state/omarchy/rdp-monitor"
 
 # Create the state directory if it doesn't exist
 mkdir -p "$(dirname "$STATE_FILE")"
@@ -42,7 +42,7 @@ show_install_instructions() {
     
     # If we're in a terminal environment, we can provide more detailed text
     if [[ "$IS_TERMINAL" == true ]]; then
-        echo "RDP Session Widget: Prerequisites not met"
+        echo "RDP Monitor: Prerequisites not met"
         echo "----------------------------------------"
         case $error_code in
             1)
@@ -64,7 +64,7 @@ show_install_instructions() {
         return 1
     else
         # For GUI integration, show a notification instead
-        notify-send -u critical "RDP Session Widget" "Prerequisites not met. Please install hypr-rdp and ensure it's running."
+        notify-send -u critical "RDP Monitor" "Prerequisites not met. Please install hypr-rdp and ensure it's running."
         return 1
     fi
 }
@@ -101,7 +101,7 @@ if ! check_prerequisites; then
     error_code=$?
     show_install_instructions $error_code
     
-    # Show an empty response to hide the widget properly
+    # Show an empty response to hide the indicator properly
     exit 0
 fi
 
@@ -129,7 +129,7 @@ if [[ ${#current_ips[@]} -eq 0 ]]; then
     fi
     # Clear the state file
     rm -f "$STATE_FILE"
-    # Print nothing (widget disappears)
+    # Print nothing (indicator disappears)
     exit 0
 fi
 
@@ -146,7 +146,7 @@ if [[ ${#current_ips[@]} -gt 0 ]]; then
     # Save current IPs to state file for next check
     printf '%s\n' "${current_ips[@]}" > "$STATE_FILE"
     
-    # Output JSON for Waybar-style widget
+    # Output JSON for Waybar-style indicator
     # The icon will be shown when connected, and tooltip will show the IP
     # When clicked, the tooltip shows the full IP info
     echo "{\"text\":\"󰢹\",\"tooltip\":\"User connected\n$first_ip\",\"class\":\"connected\"}"

@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "description": "Displays RDP connection status in the Omarchy bar when remote desktop connections are active",
   "author": "ruegen",
-  "homepage": "https://github.com/ruegen/omarchy-rdp-widget",
+  "homepage": "https://github.com/ruegen/omarchy-rdp-monitor",
   "license": "MIT",
   "shell": {
     "type": "command",
