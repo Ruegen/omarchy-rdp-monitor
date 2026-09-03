@@ -1,16 +1,16 @@
-# Omarchy RDP Session Widget Plugin
+# Omarchy RDP Monitor
 
-This project provides a complete Omarchy plugin that automatically sets up an RDP session status widget without requiring manual configuration.
+A simple RDP monitor for Omarchy that shows active connections in your bar.
 
 ## Overview
 
-This is a complete Omarchy plugin implementation that adds an RDP session monitoring widget to the Omarchy shell bar. The plugin automatically integrates with the Omarchy system and can be installed using Omarchy's command-line plugin management.
+A lightweight RDP monitor that integrates seamlessly with Omarchy. The plugin automatically integrates with the Omarchy system and can be installed using Omarchy's command-line plugin management.
 
 ## Features
 
 ✅ **Automatic Setup**: No manual shell.json configuration required  
-✅ **Dynamic Visibility**: Widget hides when no RDP sessions are active  
-✅ **Icon Display**: Shows remote-desktop glyph (󰢹) when sessions are active  
+✅ **Dynamic Visibility**: Indicator hides when no RDP connections are active  
+✅ **Icon Display**: Shows remote-desktop glyph (󰢹) when connections are active  
 ✅ **IP Information**: Displays client IP address in tooltip when hovered  
 ✅ **Notifications**: Sends connect/disconnect notifications using notify-send  
 ✅ **Proper Filtering**: Skips loopback addresses and handles IPv4-mapped IPv6 addresses  
@@ -25,9 +25,9 @@ This is a complete Omarchy plugin implementation that adds an RDP session monito
 ├── .config/
 │   └── omarchy/
 │       └── plugins/
-│           └── rdp-session/
+│           └── rdp-connection/
 │               ├── manifest.json      # Plugin manifest
-│               ├── rdp-session        # Main executable script  
+│               ├── rdp-connection     # Main executable script  
 │               ├── README.md          # Plugin documentation
 │               └── LICENSE            # MIT License
 ├── PLUGIN-README.md       # Detailed plugin documentation
@@ -69,11 +69,11 @@ The plugin now includes enhanced self-installation features:
 
 ## Usage
 
-Once installed and enabled:
-- When no RDP sessions are active, the widget is completely hidden
-- When RDP sessions are active, a remote-desktop icon appears on the bar
-- Hover over the icon to see the client IP in the tooltip
-- Receive notifications when users connect or disconnect
+Once enabled:
+- Shows a remote-desktop icon when RDP connections are active
+- Displays client IP in tooltip on hover
+- Sends notifications on connection/disconnection
+- Hides when no active connections
 
 ## Removal
 
@@ -103,9 +103,9 @@ To remove the plugin:
 ## How It Works
 
 The plugin integrates automatically with Omarchy's plugin system by:
-1. Using a proper `manifest.json` file to define the plugin with ID `ruegen.rdp-session`
-2. Providing a `rdp-session` executable script that monitors RDP connections
-3. Leveraging Omarchy's command-based widget system for automatic bar integration
+1. Using a proper `manifest.json` file to define the plugin with ID `ruegen.rdp-connection`
+2. Providing a `rdp-connection` executable script that monitors RDP connections
+3. Leveraging Omarchy's command-based indicator system for automatic bar integration
 
 When RDP sessions are detected:
 - It monitors established TCP connections on port 3389 using the `ss` command

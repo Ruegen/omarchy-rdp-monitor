@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "ruegen.rdp-session",
-  "name": "RDP Session Widget",
+  "id": "ruegen.rdp-monitor",
+  "name": "RDP Monitor",
   "version": "1.0.0",
-  "description": "Displays RDP session status in the Omarchy bar when remote desktop connections are active",
+  "description": "Displays RDP connection status in the Omarchy bar when remote desktop connections are active",
   "author": "ruegen",
   "homepage": "https://github.com/ruegen/omarchy-rdp-widget",
   "license": "MIT",
   "shell": {
     "type": "command",
-    "exec": "rdp-session",
+    "exec": "rdp-connection",
     "interval": 1,
     "tooltip": "RDP"
   }

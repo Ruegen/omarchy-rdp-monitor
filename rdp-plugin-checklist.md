@@ -3,14 +3,14 @@
 ## Plugin Requirements Verification
 
 ### ✅ Plugin Structure
-- [x] Plugin directory in `~/.config/omarchy/plugins/rdp-session/`
+- [x] Plugin directory in `~/.config/omarchy/plugins/rdp-connection/`
 - [x] Contains `manifest.json` with proper schema
-- [x] Contains executable `rdp-session` script
+- [x] Contains executable `rdp-connection` script
 - [x] Contains `README.md` and `LICENSE`
 
 ### ✅ Manifest.json Content
 - [x] Has `schemaVersion`: 1
-- [x] Has `id`: "omarchy.rdp-session"  
+- [x] Has `id`: "omarchy.rdp-monitor"  
 - [x] Has `name`: "RDP Session Widget"
 - [x] Has `version`: "1.0.0"
 - [x] Has `description`: Plugin description

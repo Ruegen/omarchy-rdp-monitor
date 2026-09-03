@@ -55,8 +55,8 @@ After installation and enabling:
 ## Usage
 
 ### Normal Operation
-- **Idle State**: Widget is completely hidden from the bar
-- **Active Session**: Remote-desktop icon (󰢹) appears on the bar
+- **Idle State**: Indicator is completely hidden from the bar
+- **Active Connection**: Remote-desktop icon (󰢹) appears on the bar
 - **Hover**: Shows "User connected" with client IP in tooltip
 - **Notifications**: Appear when users connect/disconnect
 
@@ -123,6 +123,6 @@ To remove the plugin:
 
 The plugin consists of:
 - `manifest.json`: Defines plugin metadata and shell integration
-- `rdp-session`: Main executable script with self-installation capabilities
+- `rdp-connection`: Main executable script with self-installation capabilities
 - `README.md`: Documentation about the plugin
 - `LICENSE`: MIT License information
