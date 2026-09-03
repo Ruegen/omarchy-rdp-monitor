@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# Script to detect RDP sessions and output Waybar-style JSON for Omarchy bar
+# This script will run every 1-2 seconds to detect RDP connections
+
+# File to persist last seen IPs for notification handling
+STATE_FILE="$HOME/.local/state/omarchy/rdp-session"
+
+# Create the state directory if it doesn't exist
+mkdir -p "$(dirname "$STATE_FILE")"
+
+# Function to parse IP addresses from ss output
+parse_ips() {
+    ss -Htn state established '( sport = :3389 )' 2>/dev/null | \
+    awk 'NR>1 {print $4}' | \
+    while read -r line; do
+        # Extract IP address
+        if [[ $line =~ ^.*:([0-9]+)$ ]]; then
+            ip_part="${line%:*}"
+        else
+            ip_part="$line"
+        fi
+        
+        # Skip loopback addresses
+        if [[ "$ip_part" == "127.0.0.1" ]] || [[ "$ip_part" == "::1" ]]; then
+            continue
+        fi
+        
+        # Strip IPv4-mapped IPv6 addresses (like ::ffff:192.168.x.x)
+        if [[ "$ip_part" == "::ffff:"* ]]; then
+            echo "${ip_part#::ffff:}"
+        else
+            echo "$ip_part"
+        fi
+    done
+}
+
+# Get current IPs
+current_ips=()
+while IFS= read -r ip; do
+    if [[ -n "$ip" ]]; then
+        current_ips+=("$ip")
+    fi
+done < <(parse_ips)
+
+# Get previous IPs
+if [[ -f "$STATE_FILE" ]]; then
+    prev_ips=($(cat "$STATE_FILE"))
+else
+    prev_ips=()
+fi
+
+# Handle the case when there are no current sessions
+if [[ ${#current_ips[@]} -eq 0 ]]; then
+    # If we had previous connections, send a disconnect notification
+    if [[ ${#prev_ips[@]} -gt 0 ]]; then
+        # Send notification for disconnect
+        notify-send -a hypr-rdp "User disconnected" "${prev_ips[0]}"
+    fi
+    # Clear the state file
+    rm -f "$STATE_FILE"
+    # Print nothing (widget disappears)
+    exit 0
+fi
+
+# If we have current sessions, process them
+if [[ ${#current_ips[@]} -gt 0 ]]; then
+    # Get the first IP for display 
+    first_ip="${current_ips[0]}"
+    
+    # If there were no previous connections or IPs changed, send notification
+    if [[ ${#prev_ips[@]} -eq 0 ]] || [[ "${prev_ips[*]}" != "${current_ips[*]}" ]]; then
+        notify-send -a hypr-rdp "User connected" "$first_ip"
+    fi
+    
+    # Save current IPs to state file for next check
+    printf '%s\n' "${current_ips[@]}" > "$STATE_FILE"
+    
+    # Output JSON for Waybar-style widget
+    # The icon will be shown when connected, and tooltip will show the IP
+    # When clicked, the tooltip shows the full IP info
+    echo "{\"text\":\"󰢹\",\"tooltip\":\"User connected\n$first_ip\",\"class\":\"connected\"}"
+fi
