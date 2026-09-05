@@ -24,9 +24,9 @@ Panel {
     return u
   }
   property string label: ""
-  property string tooltipText: "Remote desktop — not in use"
-  property string connectionText: "No one is connected"
-  property string connectionIps: "Waiting for a remote desktop client"
+  property string tooltipText: "Omarchy RDP — no session"
+  property string connectionText: "No active session"
+  property string connectionIps: "Waiting for a connection"
   property string connectionStatus: "disconnected"
   readonly property bool connected: connectionStatus === "connected"
 
@@ -63,14 +63,14 @@ Panel {
       root.connectionStatus = klass
       if (klass === "connected" && text.length > 0) {
         root.label = text
-        root.tooltipText = tip.replace(/\\n/g, "\n") || ("Remote desktop\n" + text)
-        root.connectionText = "Someone is controlling this computer"
+        root.tooltipText = tip.replace(/\\n/g, "\n") || ("Omarchy RDP\n" + text)
+        root.connectionText = "A remote session is active"
         root.connectionIps = text
       } else {
         root.label = ""
-        root.tooltipText = "Remote desktop — not in use"
-        root.connectionText = "No one is connected"
-        root.connectionIps = "Waiting for a remote desktop client"
+        root.tooltipText = "Omarchy RDP — no session"
+        root.connectionText = "No active session"
+        root.connectionIps = "Waiting for a connection"
       }
     } catch (e) {
       console.error("Failed to parse remote desktop status: " + e)
@@ -128,7 +128,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "Remote desktop"
+          text: "Omarchy RDP"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle

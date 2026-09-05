@@ -1,12 +1,10 @@
-# Remote Desktop
+# Omarchy RDP
 
-A small Omarchy bar icon that tells you when someone is controlling this computer over remote desktop.
+A small Omarchy bar icon that tells you when someone is controlling this computer over **Remote Desktop Protocol (RDP)** — the same protocol Microsoft Remote Desktop, Windows App, Remmina, and FreeRDP use.
 
 ![Preview](screenshot.png)
 
-It does **not** turn on remote desktop by itself. You still need [hypr-rdp](https://github.com/hyprwm/hypr-rdp) (or another RDP server) running on this machine. This plugin only watches for a live connection and makes it obvious.
-
-RDP means Remote Desktop Protocol — the same thing Microsoft Remote Desktop / Windows App uses.
+It does **not** start an RDP server. You still need [hypr-rdp](https://github.com/hyprwm/hypr-rdp) (or another RDP server) running on this machine. This plugin only watches for a live connection and makes it obvious.
 
 ## Before you start
 
