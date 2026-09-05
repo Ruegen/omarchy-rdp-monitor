@@ -128,10 +128,10 @@ json_escape() {
 
 if [[ ${#current_ips[@]} -eq 0 ]]; then
   if [[ ${#prev_ips[@]} -gt 0 ]]; then
-    notify "Controlling connection ended" "${prev_ips[0]}"
+    notify "Remote desktop disconnected" "${prev_ips[0]}"
   fi
   rm -f "$STATE_FILE"
-  echo "{\"text\":\"\",\"tooltip\":\"No controlling connection\",\"class\":\"disconnected\",\"port\":$RDP_PORT}"
+  echo "{\"text\":\"\",\"tooltip\":\"Remote desktop — not in use\",\"class\":\"disconnected\",\"port\":$RDP_PORT}"
   exit 0
 fi
 
@@ -140,10 +140,10 @@ prev_joined="$(printf '%s\n' "${prev_ips[@]}" | sort -u | paste -sd, -)"
 curr_joined="$(printf '%s\n' "${current_ips[@]}" | sort -u | paste -sd, -)"
 
 if [[ "$prev_joined" != "$curr_joined" ]]; then
-  notify "Controlling connection" "$first_ip"
+  notify "Remote desktop connected" "$first_ip"
 fi
 
 printf '%s\n' "${current_ips[@]}" > "$STATE_FILE"
 
-tooltip="Controlling connection\\n$(json_escape "$first_ip")"
+tooltip="Remote desktop\\n$(json_escape "$first_ip")"
 echo "{\"text\":\"$(json_escape "$first_ip")\",\"tooltip\":\"$tooltip\",\"class\":\"connected\",\"port\":$RDP_PORT}"

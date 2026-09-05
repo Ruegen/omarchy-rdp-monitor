@@ -23,10 +23,10 @@ Panel {
       u = u.substring(7)
     return u
   }
-  property string label: "RDP"
-  property string tooltipText: "No controlling connection"
-  property string connectionText: "No controlling connection"
-  property string connectionIps: "Waiting for a Mac or PC to connect"
+  property string label: ""
+  property string tooltipText: "Remote desktop — not in use"
+  property string connectionText: "No one is connected"
+  property string connectionIps: "Waiting for a remote desktop client"
   property string connectionStatus: "disconnected"
   readonly property bool connected: connectionStatus === "connected"
 
@@ -63,17 +63,17 @@ Panel {
       root.connectionStatus = klass
       if (klass === "connected" && text.length > 0) {
         root.label = text
-        root.tooltipText = tip.replace(/\\n/g, "\n") || ("Controlling connection\n" + text)
-        root.connectionText = "Controlling connection"
+        root.tooltipText = tip.replace(/\\n/g, "\n") || ("Remote desktop\n" + text)
+        root.connectionText = "Someone is controlling this computer"
         root.connectionIps = text
       } else {
-        root.label = "RDP"
-        root.tooltipText = "No controlling connection"
-        root.connectionText = "No controlling connection"
-        root.connectionIps = "Waiting for a Mac or PC to connect"
+        root.label = ""
+        root.tooltipText = "Remote desktop — not in use"
+        root.connectionText = "No one is connected"
+        root.connectionIps = "Waiting for a remote desktop client"
       }
     } catch (e) {
-      console.error("Failed to parse RDP status: " + e)
+      console.error("Failed to parse remote desktop status: " + e)
       root.connectionIps = "Error parsing data"
     }
   }
@@ -128,7 +128,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "RDP Connection Status"
+          text: "Remote desktop"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle

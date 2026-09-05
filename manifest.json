@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "io.github.ruegen.rdp-monitor",
-  "name": "RDP Monitor",
-  "version": "1.3.0",
-  "description": "Shows the IP of a Mac or PC controlling this machine over RDP and notifies on connect",
+  "name": "Remote Desktop",
+  "version": "1.3.1",
+  "description": "Shows when someone is controlling this machine over remote desktop, and notifies on connect",
   "author": "ruegen",
   "homepage": "https://github.com/ruegen/omarchy-rdp-monitor",
   "license": "MIT",
@@ -12,7 +12,7 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "RDP Monitor",
+    "displayName": "Remote Desktop",
     "category": "Network",
     "allowMultiple": false,
     "defaultSection": "right",
@@ -23,7 +23,7 @@
       {
         "key": "port",
         "type": "integer",
-        "label": "RDP port (0 = auto from hypr-rdp)",
+        "label": "Listen port (0 = auto from hypr-rdp)",
         "min": 0,
         "max": 65535,
         "step": 1,

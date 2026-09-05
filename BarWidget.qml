@@ -15,16 +15,21 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelLoader.item
     ? panelLoader.item.popoutSwitchClosing === true
     : false
-  readonly property string tooltipText: panelLoader.item ? panelLoader.item.tooltipText : "RDP"
+  readonly property string tooltipText: panelLoader.item ? panelLoader.item.tooltipText : "Remote desktop"
   readonly property bool connected: panelLoader.item ? panelLoader.item.connected : false
   readonly property string controllerIp: {
     if (!root.connected || !panelLoader.item) return ""
-    var ip = String(panelLoader.item.label || "")
-    return ip === "RDP" ? "" : ip
+    return String(panelLoader.item.label || "")
   }
 
   property real bannerX: -1
   property real bannerY: -1
+  property bool bannerDragging: false
+
+  readonly property real bannerW: bannerCard.implicitWidth
+  readonly property real bannerH: bannerCard.implicitHeight
+  readonly property real placedX: bannerX < 0 ? defaultBannerX() : clampX(bannerX)
+  readonly property real placedY: bannerY < 0 ? defaultBannerY() : clampY(bannerY)
 
   function open() {
     if (panelLoader.item) panelLoader.item.open()
@@ -51,39 +56,53 @@ BarWidget {
       panelLoader.item.settings = root.settings
   }
 
+  function screenW() {
+    if (observeBanner.width > 0) return observeBanner.width
+    var s = observeBanner.screen
+    return s && s.width ? s.width : 1920
+  }
+
+  function screenH() {
+    if (observeBanner.height > 0) return observeBanner.height
+    var s = observeBanner.screen
+    return s && s.height ? s.height : 1080
+  }
+
   function defaultBannerX() {
-    return Math.round((observeBanner.width - bannerCard.width) / 2)
+    return Math.round((screenW() - root.bannerW) / 2)
   }
 
   function defaultBannerY() {
     return Style.bar.sizeHorizontal + Style.gapsOut
   }
 
-  function clampBanner() {
-    var maxX = Math.max(0, observeBanner.width - bannerCard.width)
-    var maxY = Math.max(0, observeBanner.height - bannerCard.height)
-    bannerCard.x = Math.round(Math.min(maxX, Math.max(0, bannerCard.x)))
-    bannerCard.y = Math.round(Math.min(maxY, Math.max(0, bannerCard.y)))
+  function clampX(x) {
+    return Math.round(Math.min(Math.max(0, x), Math.max(0, screenW() - root.bannerW)))
+  }
+
+  function clampY(y) {
+    return Math.round(Math.min(Math.max(0, y), Math.max(0, screenH() - root.bannerH)))
   }
 
   function applyBannerPos() {
-    if (!observeBanner.visible || observeBanner.width <= 0 || bannerCard.width <= 0)
-      return
-    if (root.bannerX < 0 || root.bannerY < 0) {
-      bannerCard.x = root.defaultBannerX()
-      bannerCard.y = root.defaultBannerY()
-    } else {
-      bannerCard.x = root.bannerX
-      bannerCard.y = root.bannerY
-      root.clampBanner()
-    }
+    if (!observeBanner.visible || root.bannerW <= 0) return
+    bannerCard.x = root.placedX
+    bannerCard.y = root.placedY
   }
 
   function saveBannerPos() {
-    root.clampBanner()
-    root.bannerX = bannerCard.x
-    root.bannerY = bannerCard.y
+    root.bannerX = root.clampX(bannerCard.x)
+    root.bannerY = root.clampY(bannerCard.y)
+    bannerCard.x = root.bannerX
+    bannerCard.y = root.bannerY
     posFile.setText(JSON.stringify({ x: root.bannerX, y: root.bannerY }) + "\n")
+  }
+
+  function resetBannerPos() {
+    root.bannerX = -1
+    root.bannerY = -1
+    posFile.setText("{}\n")
+    root.applyBannerPos()
   }
 
   implicitWidth: button.implicitWidth
@@ -138,8 +157,8 @@ BarWidget {
     onLoadFailed: Qt.callLater(root.applyBannerPos)
   }
 
-  // Persistent notice while a remote desktop session is in control.
-  // Wording is original — not Apple's "Your screen is being observed."
+  // Fullscreen host stays put so the pointer grab survives. Only the card
+  // moves; the rest of the surface is click-through.
   PanelWindow {
     id: observeBanner
     visible: root.connected
@@ -153,8 +172,8 @@ BarWidget {
     mask: Region { item: bannerCard }
 
     onVisibleChanged: if (visible) Qt.callLater(root.applyBannerPos)
-    onWidthChanged: if (visible) root.clampBanner()
-    onHeightChanged: if (visible) root.clampBanner()
+    onWidthChanged: if (visible && !root.bannerDragging) root.applyBannerPos()
+    onHeightChanged: if (visible && !root.bannerDragging) root.applyBannerPos()
 
     BorderSurface {
       id: bannerCard
@@ -189,13 +208,21 @@ BarWidget {
         }
       }
 
-      DragHandler {
-        target: bannerCard
+      MouseArea {
+        anchors.fill: parent
         cursorShape: Qt.SizeAllCursor
-        onActiveChanged: {
-          if (!active)
-            root.saveBannerPos()
+        drag.target: bannerCard
+        drag.threshold: 4
+        drag.minimumX: 0
+        drag.maximumX: Math.max(0, observeBanner.width - bannerCard.width)
+        drag.minimumY: 0
+        drag.maximumY: Math.max(0, observeBanner.height - bannerCard.height)
+        onPressed: root.bannerDragging = true
+        onReleased: {
+          root.saveBannerPos()
+          root.bannerDragging = false
         }
+        onDoubleClicked: root.resetBannerPos()
       }
     }
   }

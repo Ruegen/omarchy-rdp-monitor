@@ -1,8 +1,25 @@
-# Omarchy RDP Monitor
+# Remote Desktop
 
-Omarchy bar widget that shows when a Mac or PC is controlling this machine over RDP (`hypr-rdp`).
+A small Omarchy bar icon that tells you when someone is controlling this computer over remote desktop.
 
-The bar icon is a remote-desktop glyph, so it follows the current theme: dim when idle, theme active color when someone is connected.
+![Preview](screenshot.png)
+
+It does **not** turn on remote desktop by itself. You still need [hypr-rdp](https://github.com/hyprwm/hypr-rdp) (or another RDP server) running on this machine. This plugin only watches for a live connection and makes it obvious.
+
+RDP means Remote Desktop Protocol — the same thing Microsoft Remote Desktop / Windows App uses.
+
+## Before you start
+
+1. Install `hypr-rdp` on this Omarchy PC.
+2. Start it and keep it running:
+
+```sh
+systemctl --user enable --now hypr-rdp.service
+```
+
+3. From another device, connect with any RDP client (Microsoft Remote Desktop / Windows App, Remmina, FreeRDP, and so on) to this computer’s IP.
+
+If nobody is connected yet, the icon stays dim. That is normal.
 
 ## Install
 
@@ -10,26 +27,31 @@ The bar icon is a remote-desktop glyph, so it follows the current theme: dim whe
 omarchy plugin add https://github.com/Ruegen/omarchy-rdp-monitor.git --enable
 ```
 
-Or copy this repo into `~/.config/omarchy/plugins/io.github.ruegen.rdp-monitor/` and reload the Omarchy shell:
+The icon appears on the **right** of the bar. To move it:
 
 ```sh
-mkdir -p ~/.config/omarchy/plugins
-cp -r . ~/.config/omarchy/plugins/io.github.ruegen.rdp-monitor
-omarchy-shell shell rescanPlugins
-omarchy plugin enable io.github.ruegen.rdp-monitor
+omarchy bar move io.github.ruegen.rdp-monitor --section left
 ```
 
-`omarchy plugin add` expects `manifest.json` at the repo root. The widget lands on the right of the bar by default (`omarchy bar move io.github.ruegen.rdp-monitor --section right` if you want to move it).
+Or copy this folder to `~/.config/omarchy/plugins/io.github.ruegen.rdp-monitor/` and run `omarchy plugin enable io.github.ruegen.rdp-monitor`.
 
-Requires `hypr-rdp` running. The plugin reads the listen port from the live `hypr-rdp` socket, then from `bind` in `~/.config/hypr-rdp/config.toml`, then 3389. Set **RDP port** on the widget (or pass a port to `rdp-connection`) to override. Detection uses `ss` for inbound sessions (the controlling client), not outbound RDP.
+## What you will see
 
-## Usage
+| | Meaning |
+|---|---|
+| Dim icon | Nobody is connected |
+| Bright icon + notification | A remote desktop client just connected |
+| Banner: **This computer is being controlled remotely** + an IP | That machine is in control right now |
 
-1. Keep `hypr-rdp` running (`systemctl --user enable --now hypr-rdp.service`).
-2. When a Mac or PC connects, the icon lights up and a notification fires.
-3. A banner reads **This computer is being controlled remotely** plus the client IP. Drag it; the position is saved.
-4. Hover or click the icon for the same IP.
-5. When they disconnect, the banner hides, the icon dims, and the panel goes back to idle (within about two seconds).
+Hover or click the icon to see the same IP.
+
+Drag the banner anywhere. Double-click it to put it back under the bar. When they disconnect, the banner goes away and the icon dims again (within a couple of seconds).
+
+## If nothing happens
+
+- Is `hypr-rdp` running? `systemctl --user status hypr-rdp.service`
+- Did a client actually connect (not just sit on the login screen of the remote app)?
+- Unusual listen port? The plugin follows whatever `hypr-rdp` is using. You can also set **Listen port** on the widget (0 = automatic).
 
 ## Remove
 
@@ -37,7 +59,7 @@ Requires `hypr-rdp` running. The plugin reads the listen port from the live `hyp
 omarchy plugin remove io.github.ruegen.rdp-monitor
 ```
 
-That disables the widget and deletes the plugin checkout.
+That removes the widget only. `hypr-rdp` stays installed.
 
 ## Update
 
