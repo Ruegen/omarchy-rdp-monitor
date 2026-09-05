@@ -1,9 +1,71 @@
 #!/bin/bash
-# Detect inbound RDP controllers (Mac/PC connected to hypr-rdp on :3389).
+# Detect inbound RDP controllers connected to hypr-rdp.
+# Port: optional $1 / RDP_MONITOR_PORT, else the live hypr-rdp listener,
+# else bind from ~/.config/hypr-rdp/config.toml, else 3389.
 set -euo pipefail
 
 STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/rdp-monitor"
 mkdir -p "$(dirname "$STATE_FILE")"
+
+valid_port() {
+  [[ "${1:-}" =~ ^[0-9]+$ ]] && ((10#$1 >= 1 && 10#$1 <= 65535))
+}
+
+port_from_addr() {
+  local addr="$1"
+  local port="${addr##*:}"
+  valid_port "$port" || return 1
+  printf '%s\n' "$port"
+}
+
+read_listening_port() {
+  command -v ss >/dev/null 2>&1 || return 1
+  local line addr
+  while IFS= read -r line; do
+    [[ "$line" == *hypr-rdp* ]] || continue
+    addr=$(awk '{print $(NF-1)}' <<<"$line")
+    port_from_addr "$addr" && return 0
+  done < <(ss -Htlpn 2>/dev/null || true)
+  return 1
+}
+
+read_config_port() {
+  local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/hypr-rdp/config.toml"
+  [[ -f "$cfg" ]] || return 1
+  local bind
+  bind=$(awk -F= '
+    $0 ~ /^[[:space:]]*bind[[:space:]]*=/ {
+      gsub(/[[:space:]"]/, "", $2)
+      print $2
+      exit
+    }
+  ' "$cfg")
+  [[ -n "$bind" ]] || return 1
+  port_from_addr "$bind"
+}
+
+resolve_port() {
+  if valid_port "${1:-}"; then
+    printf '%s\n' "$1"
+    return
+  fi
+  if valid_port "${RDP_MONITOR_PORT:-}"; then
+    printf '%s\n' "$RDP_MONITOR_PORT"
+    return
+  fi
+  local p
+  if p=$(read_listening_port); then
+    printf '%s\n' "$p"
+    return
+  fi
+  if p=$(read_config_port); then
+    printf '%s\n' "$p"
+    return
+  fi
+  printf '%s\n' "3389"
+}
+
+RDP_PORT="$(resolve_port "${1:-}")"
 
 notify() {
   local title="$1"
@@ -35,7 +97,7 @@ peer_ip() {
 
 local_is_rdp() {
   local addr="$1"
-  [[ "$addr" == *:3389 || "$addr" == \[*\]:3389 ]]
+  [[ "$addr" == *:"$RDP_PORT" || "$addr" == \[*\]:"$RDP_PORT" ]]
 }
 
 parse_ips() {
@@ -69,7 +131,7 @@ if [[ ${#current_ips[@]} -eq 0 ]]; then
     notify "Controlling connection ended" "${prev_ips[0]}"
   fi
   rm -f "$STATE_FILE"
-  echo '{"text":"","tooltip":"No controlling connection","class":"disconnected"}'
+  echo "{\"text\":\"\",\"tooltip\":\"No controlling connection\",\"class\":\"disconnected\",\"port\":$RDP_PORT}"
   exit 0
 fi
 
@@ -84,4 +146,4 @@ fi
 printf '%s\n' "${current_ips[@]}" > "$STATE_FILE"
 
 tooltip="Controlling connection\\n$(json_escape "$first_ip")"
-echo "{\"text\":\"$(json_escape "$first_ip")\",\"tooltip\":\"$tooltip\",\"class\":\"connected\"}"
+echo "{\"text\":\"$(json_escape "$first_ip")\",\"tooltip\":\"$tooltip\",\"class\":\"connected\",\"port\":$RDP_PORT}"

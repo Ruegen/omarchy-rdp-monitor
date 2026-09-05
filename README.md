@@ -1,6 +1,6 @@
 # Omarchy RDP Monitor
 
-Omarchy bar widget that shows when a Mac or PC is controlling this machine over RDP (`hypr-rdp` on port 3389).
+Omarchy bar widget that shows when a Mac or PC is controlling this machine over RDP (`hypr-rdp`).
 
 The bar icon is a remote-desktop glyph, so it follows the current theme: dim when idle, theme active color when someone is connected.
 
@@ -21,7 +21,7 @@ omarchy plugin enable io.github.ruegen.rdp-monitor
 
 `omarchy plugin add` expects `manifest.json` at the repo root. The widget lands on the right of the bar by default (`omarchy bar move io.github.ruegen.rdp-monitor --section right` if you want to move it).
 
-Requires `hypr-rdp` listening on `0.0.0.0:3389`. Detection uses `ss` for inbound sessions (the controlling client), not outbound RDP.
+Requires `hypr-rdp` running. The plugin reads the listen port from the live `hypr-rdp` socket, then from `bind` in `~/.config/hypr-rdp/config.toml`, then 3389. Set **RDP port** on the widget (or pass a port to `rdp-connection`) to override. Detection uses `ss` for inbound sessions (the controlling client), not outbound RDP.
 
 ## Usage
 

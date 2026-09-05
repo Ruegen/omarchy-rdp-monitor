@@ -11,6 +11,12 @@ Panel {
 
   property var anchorItem: null
   property var hostWidget: null
+  property var settings: ({})
+  readonly property int configuredPort: {
+    var n = parseInt(String(settings && settings.port != null ? settings.port : 0), 10)
+    if (!isFinite(n) || n < 1 || n > 65535) return 0
+    return n
+  }
   property string scriptPath: {
     var u = String(Qt.resolvedUrl("rdp-connection"))
     if (u.indexOf("file://") === 0)
@@ -74,7 +80,10 @@ Panel {
 
   function pollNow() {
     if (statusProc.running) return
-    statusProc.command = ["bash", root.scriptPath]
+    if (root.configuredPort > 0)
+      statusProc.command = ["bash", root.scriptPath, String(root.configuredPort)]
+    else
+      statusProc.command = ["bash", root.scriptPath]
     statusProc.running = true
   }
 

@@ -47,6 +47,8 @@ BarWidget {
     panelLoader.item.bar = root.bar
     panelLoader.item.anchorItem = button
     panelLoader.item.hostWidget = root
+    if ("settings" in panelLoader.item)
+      panelLoader.item.settings = root.settings
   }
 
   function defaultBannerX() {
@@ -88,6 +90,7 @@ BarWidget {
   implicitHeight: button.implicitHeight
 
   onBarChanged: injectPanel()
+  onSettingsChanged: injectPanel()
 
   BarIconButton {
     id: button
