@@ -11,8 +11,8 @@ A lightweight RDP monitor that integrates seamlessly with Omarchy.
 ✅ **Automatic Setup**: No manual shell.json configuration required  
 ✅ **Dynamic Visibility**: Indicator hides when no RDP connections are active  
 ✅ **Icon Display**: Shows remote-desktop glyph (󰢹) when connections are active  
-✅ **IP Information**: Displays client IP address in tooltip when hovered  
-✅ **Notifications**: Sends connect/disconnect notifications using notify-send  
+✅ **IP Information**: Shows the controlling Mac/PC IP on the bar  
+✅ **Notifications**: Popup when a controlling connection starts or ends  
 ✅ **Proper Filtering**: Skips loopback addresses and handles IPv4-mapped IPv6 addresses  
 ✅ **Edge-Triggered Notifications**: Only notifies on connection/disconnection changes  
 ✅ **Omarchy Compatible**: Works with Omarchy updates and follows plugin conventions  

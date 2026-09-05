@@ -1,16 +1,20 @@
 {
   "schemaVersion": 1,
-  "id": "ruegen.rdp-monitor",
+  "id": "io.github.ruegen.rdp-monitor",
   "name": "RDP Monitor",
-  "version": "1.0.0",
-  "description": "Displays RDP connection status in the Omarchy bar when remote desktop connections are active",
+  "version": "1.2.0",
+  "description": "Shows the IP of a Mac or PC controlling this machine over RDP and notifies on connect",
   "author": "ruegen",
   "homepage": "https://github.com/ruegen/omarchy-rdp-monitor",
   "license": "MIT",
-  "shell": {
-    "type": "command",
-    "exec": "rdp-connection",
-    "interval": 1,
-    "tooltip": "RDP"
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "RDP Monitor",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right"
   }
 }
