@@ -1,68 +1,50 @@
 # Omarchy RDP Monitor
 
-A simple RDP monitor for Omarchy that shows active connections in your bar.
+Omarchy bar widget that shows when a Mac or PC is controlling this machine over RDP (`hypr-rdp` on port 3389).
 
-## Overview
+The bar icon is a remote-desktop glyph, so it follows the current theme: dim when idle, theme active color when someone is connected.
 
-A lightweight RDP monitor that integrates seamlessly with Omarchy.
+## Install
 
-## Features
-
-✅ **Automatic Setup**: No manual shell.json configuration required  
-✅ **Dynamic Visibility**: Indicator hides when no RDP connections are active  
-✅ **Icon Display**: Shows remote-desktop glyph (󰢹) when connections are active  
-✅ **IP Information**: Shows the controlling Mac/PC IP on the bar  
-✅ **Notifications**: Popup when a controlling connection starts or ends  
-✅ **Proper Filtering**: Skips loopback addresses and handles IPv4-mapped IPv6 addresses  
-✅ **Edge-Triggered Notifications**: Only notifies on connection/disconnection changes  
-✅ **Omarchy Compatible**: Works with Omarchy updates and follows plugin conventions  
-✅ **Self-Installation Support**: Detects missing prerequisites and guides user through installation
-
-## Plugin Structure
-
-```
-~/Documents/apps/omarchy-rdp-monitor/
-├── .config/
-│   └── omarchy/
-│       └── plugins/
-│           └── rdp-monitor/
-│               ├── manifest.json      # Plugin manifest
-│               ├── rdp-connection     # Main executable script  
-│               ├── README.md          # Plugin documentation
-│               └── LICENSE            # MIT License
-├── PLUGIN-README.md       # Detailed plugin documentation
-├── README.md              # Project overview (this file)
-└── INSTALL.md             # Installation and removal instructions
+```sh
+omarchy plugin add https://github.com/Ruegen/omarchy-rdp-monitor.git --enable
 ```
 
-## Installation
+Or copy this repo into `~/.config/omarchy/plugins/io.github.ruegen.rdp-monitor/` and reload the Omarchy shell:
 
-### Command Line Installation (Recommended)
-```bash
-omarchy plugin add https://github.com/ruegen/omarchy-rdp-monitor.git --enable
+```sh
+mkdir -p ~/.config/omarchy/plugins
+cp -r . ~/.config/omarchy/plugins/io.github.ruegen.rdp-monitor
+omarchy-shell shell rescanPlugins
+omarchy plugin enable io.github.ruegen.rdp-monitor
 ```
 
-### Manual Installation
-1. **Copy the plugin directory** to your Omarchy system:
-   ```bash
-   # Create the plugins directory if it doesn't exist
-   mkdir -p ~/.config/omarchy/plugins
-   
-   # Copy the rdp-monitor plugin directory
-   cp -r ~/Documents/apps/omarchy-rdp-monitor/.config/omarchy/plugins/rdp-monitor ~/.config/omarchy/plugins/
-   ```
+`omarchy plugin add` expects `manifest.json` at the repo root. The widget lands on the right of the bar by default (`omarchy bar move io.github.ruegen.rdp-monitor --section right` if you want to move it).
 
-2. **Enable the plugin** through Omarchy shell:
-   ```bash
-   omarchy plugin enable rdp-monitor
-   ```
-
-3. **The indicator will automatically appear** in the Omarchy bar when RDP connections are active
+Requires `hypr-rdp` listening on `0.0.0.0:3389`. Detection uses `ss` for inbound sessions (the controlling client), not outbound RDP.
 
 ## Usage
 
-Once enabled:
-- Shows a remote-desktop icon when RDP connections are active
-- Displays client IP in tooltip on hover
-- Sends notifications on connection/disconnection
-- Hides when no active connections
+1. Keep `hypr-rdp` running (`systemctl --user enable --now hypr-rdp.service`).
+2. When a Mac or PC connects, the icon lights up and a notification fires.
+3. A banner reads **This computer is being controlled remotely** plus the client IP. Drag it; the position is saved.
+4. Hover or click the icon for the same IP.
+5. When they disconnect, the banner hides, the icon dims, and the panel goes back to idle (within about two seconds).
+
+## Remove
+
+```sh
+omarchy plugin remove io.github.ruegen.rdp-monitor
+```
+
+That disables the widget and deletes the plugin checkout.
+
+## Update
+
+```sh
+omarchy plugin update io.github.ruegen.rdp-monitor
+```
+
+## License
+
+MIT. You can use, copy, and modify this plugin, including commercially.
