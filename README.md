@@ -2,7 +2,7 @@
 
 A small Omarchy bar icon that tells you when someone is controlling this computer over **Remote Desktop Protocol** — the same protocol Microsoft Remote Desktop, Windows App, Remmina, and FreeRDP use.
 
-![Preview](screenshot.png)
+![Preview](preview.png)
 
 The bar icon and status text use the theme green while a session is active. The panel title is **Remote Desktop Protocol**.
 
