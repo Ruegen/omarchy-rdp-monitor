@@ -24,11 +24,15 @@ Panel {
     return u
   }
   property string label: ""
-  property string tooltipText: "Omarchy RDP — no session"
+  property string tooltipText: "Remote Desktop Protocol — no session"
   property string connectionText: "No active session"
   property string connectionIps: "Waiting for a connection"
   property string connectionStatus: "disconnected"
   readonly property bool connected: connectionStatus === "connected"
+  readonly property color themeGreen: hostWidget && hostWidget.themeGreen
+    ? hostWidget.themeGreen
+    : Color.accent
+  readonly property color statusColor: connected ? themeGreen : root.barForeground
 
   function open() {
     root.controller.show()
@@ -63,12 +67,12 @@ Panel {
       root.connectionStatus = klass
       if (klass === "connected" && text.length > 0) {
         root.label = text
-        root.tooltipText = tip.replace(/\\n/g, "\n") || ("Omarchy RDP\n" + text)
+        root.tooltipText = tip.replace(/\\n/g, "\n") || ("Remote Desktop Protocol\n" + text)
         root.connectionText = "A remote session is active"
         root.connectionIps = text
       } else {
         root.label = ""
-        root.tooltipText = "Omarchy RDP — no session"
+        root.tooltipText = "Remote Desktop Protocol — no session"
         root.connectionText = "No active session"
         root.connectionIps = "Waiting for a connection"
       }
@@ -128,7 +132,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "Omarchy RDP"
+          text: "Remote Desktop Protocol"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle
@@ -139,7 +143,7 @@ Panel {
         Text {
           width: parent.width
           text: root.connectionText
-          color: root.barForeground
+          color: root.statusColor
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.body
           wrapMode: Text.WordWrap
@@ -148,7 +152,7 @@ Panel {
         Text {
           width: parent.width
           text: root.connectionIps
-          color: root.barForeground
+          color: root.statusColor
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.body
           wrapMode: Text.WordWrap

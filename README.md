@@ -1,10 +1,12 @@
-# Omarchy RDP
+# Remote Desktop Protocol
 
-A small Omarchy bar icon that tells you when someone is controlling this computer over **Remote Desktop Protocol (RDP)** — the same protocol Microsoft Remote Desktop, Windows App, Remmina, and FreeRDP use.
+A small Omarchy bar icon that tells you when someone is controlling this computer over **Remote Desktop Protocol** — the same protocol Microsoft Remote Desktop, Windows App, Remmina, and FreeRDP use.
 
 ![Preview](screenshot.png)
 
-It does **not** start an RDP server. You still need [hypr-rdp](https://github.com/hyprwm/hypr-rdp) (or another RDP server) running on this machine. This plugin only watches for a live connection and makes it obvious.
+The bar icon and status text use the theme green while a session is active. The panel title is **Remote Desktop Protocol**.
+
+It does **not** start a Remote Desktop Protocol server. You still need [hypr-rdp](https://github.com/hyprwm/hypr-rdp) (or another Remote Desktop Protocol server) running on this machine. This plugin only watches for a live connection and makes it obvious.
 
 ## Before you start
 
@@ -15,9 +17,9 @@ It does **not** start an RDP server. You still need [hypr-rdp](https://github.co
 systemctl --user enable --now hypr-rdp.service
 ```
 
-3. From another device, connect with any RDP client (Microsoft Remote Desktop / Windows App, Remmina, FreeRDP, and so on) to this computer’s IP.
+3. From another device, connect with any Remote Desktop Protocol client (Microsoft Remote Desktop / Windows App, Remmina, FreeRDP, and so on) to this computer’s IP.
 
-If nobody is connected yet, the icon stays dim. That is normal.
+If nobody is connected yet, the icon is hidden. That is normal.
 
 ## Install
 
@@ -25,7 +27,7 @@ If nobody is connected yet, the icon stays dim. That is normal.
 omarchy plugin add https://github.com/Ruegen/omarchy-rdp-monitor.git --enable
 ```
 
-The icon appears on the **right** of the bar. To move it:
+When someone is connected, the icon appears on the **right** of the bar. To move it:
 
 ```sh
 omarchy bar move io.github.ruegen.rdp-monitor --section left
@@ -37,13 +39,13 @@ Or copy this folder to `~/.config/omarchy/plugins/io.github.ruegen.rdp-monitor/`
 
 | | Meaning |
 |---|---|
-| Dim icon | Nobody is connected |
-| Bright icon + notification | A remote desktop client just connected |
+| No icon | Nobody is connected |
+| Theme-green icon + notification | A remote desktop client just connected |
 | Banner: **This computer is being controlled remotely** + an IP | That machine is in control right now |
 
 Hover or click the icon to see the same IP.
 
-Drag the banner anywhere. Double-click it to put it back under the bar. When they disconnect, the banner goes away and the icon dims again (within a couple of seconds).
+Drag the banner anywhere. Double-click it to put it back under the bar. When they disconnect, the banner and the icon both go away (within a couple of seconds).
 
 ## If nothing happens
 

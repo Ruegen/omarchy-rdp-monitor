@@ -15,12 +15,28 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelLoader.item
     ? panelLoader.item.popoutSwitchClosing === true
     : false
-  readonly property string tooltipText: panelLoader.item ? panelLoader.item.tooltipText : "Omarchy RDP"
+  readonly property string tooltipText: panelLoader.item ? panelLoader.item.tooltipText : "Remote Desktop Protocol"
   readonly property bool connected: panelLoader.item ? panelLoader.item.connected : false
   readonly property string controllerIp: {
     if (!root.connected || !panelLoader.item) return ""
     return String(panelLoader.item.label || "")
   }
+
+  // Theme `green` from colors.toml. Color.urgent / bar.active are red.
+  property color themeGreen: Color.accent
+
+  function parseThemeGreen(raw) {
+    var lines = String(raw || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^\s*green\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+      if (m) return m[1]
+    }
+    return ""
+  }
+
+  visible: root.connected
+  implicitWidth: root.connected ? button.implicitWidth : 0
+  implicitHeight: root.connected ? button.implicitHeight : 0
 
   property real bannerX: -1
   property real bannerY: -1
@@ -105,9 +121,6 @@ BarWidget {
     root.applyBannerPos()
   }
 
-  implicitWidth: button.implicitWidth
-  implicitHeight: button.implicitHeight
-
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
@@ -115,12 +128,12 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // nf-md-remote-desktop — color comes from the theme (bar.active / urgent when connected)
+    // nf-md-remote-desktop — theme green while a session is active
     text: "󰢹"
     tooltipText: root.tooltipText
-    active: root.connected
-    useActiveColor: true
-    dimmed: !root.connected
+    active: false
+    useActiveColor: false
+    foreground: root.themeGreen
     slotSize: Style.bar.statusSlot
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
@@ -136,6 +149,19 @@ BarWidget {
       root.injectPanel()
       Qt.callLater(root.injectPanel)
     }
+  }
+
+  FileView {
+    id: themeColorsFile
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      var green = root.parseThemeGreen(text())
+      root.themeGreen = green.length > 0 ? green : Color.accent
+    }
+    onFileChanged: reload()
+    onLoadFailed: root.themeGreen = Color.accent
   }
 
   FileView {
@@ -180,7 +206,7 @@ BarWidget {
       x: 0
       y: 0
       color: Color.popups.background
-      borderSpec: Border.surfaceSpec("popups", "border", Color.urgent, Math.max(1, Style.space(2)))
+      borderSpec: Border.surfaceSpec("popups", "border", root.themeGreen, Math.max(1, Style.space(2)))
       radius: Style.cornerRadius
       implicitWidth: bannerRow.implicitWidth + Style.space(28)
       implicitHeight: bannerRow.implicitHeight + Style.space(16)
@@ -192,7 +218,7 @@ BarWidget {
 
         Text {
           text: "󰢹"
-          color: Color.urgent
+          color: root.themeGreen
           font.family: Style.font.family
           font.pixelSize: Style.font.icon
         }

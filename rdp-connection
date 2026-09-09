@@ -128,10 +128,10 @@ json_escape() {
 
 if [[ ${#current_ips[@]} -eq 0 ]]; then
   if [[ ${#prev_ips[@]} -gt 0 ]]; then
-    notify "RDP session ended" "${prev_ips[0]}"
+    notify "Remote Desktop Protocol session ended" "${prev_ips[0]}"
   fi
   rm -f "$STATE_FILE"
-  echo "{\"text\":\"\",\"tooltip\":\"Omarchy RDP — no session\",\"class\":\"disconnected\",\"port\":$RDP_PORT}"
+  echo "{\"text\":\"\",\"tooltip\":\"Remote Desktop Protocol — no session\",\"class\":\"disconnected\",\"port\":$RDP_PORT}"
   exit 0
 fi
 
@@ -140,10 +140,10 @@ prev_joined="$(printf '%s\n' "${prev_ips[@]}" | sort -u | paste -sd, -)"
 curr_joined="$(printf '%s\n' "${current_ips[@]}" | sort -u | paste -sd, -)"
 
 if [[ "$prev_joined" != "$curr_joined" ]]; then
-  notify "RDP session started" "$first_ip"
+  notify "Remote Desktop Protocol session started" "$first_ip"
 fi
 
 printf '%s\n' "${current_ips[@]}" > "$STATE_FILE"
 
-tooltip="Omarchy RDP\\n$(json_escape "$first_ip")"
+tooltip="Remote Desktop Protocol\\n$(json_escape "$first_ip")"
 echo "{\"text\":\"$(json_escape "$first_ip")\",\"tooltip\":\"$tooltip\",\"class\":\"connected\",\"port\":$RDP_PORT}"
