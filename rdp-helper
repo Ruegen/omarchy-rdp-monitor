@@ -1,0 +1,597 @@
+#!/usr/bin/python3 -I
+"""Bounded Remote Desktop Protocol session helper for the Omarchy bar widget."""
+import json
+import os
+import pwd
+import re
+import select
+import signal
+import stat
+import subprocess
+import sys
+import time
+
+MAX_STATE = 4096
+MAX_CMD = 65536
+MAX_THEME = 65536
+MAX_STR = 80
+SS = "/usr/bin/ss"
+HYPRCTL = "/usr/bin/hyprctl"
+NOTIFY = "/usr/bin/omarchy-notification-send"
+NOTIFY_FALLBACK = "/usr/bin/notify-send"
+RDP_KB = "hl-virtual-keyboard-hypr-rdp"
+HYPR_MARK_BEGIN = "-- io.github.ruegen.rdp-monitor: begin"
+HYPR_MARK_END = "-- io.github.ruegen.rdp-monitor: end"
+HYPR_REQUIRE = 'require("hypr.rdp-monitor")'
+HYPR_SNIPPET = """%s
+-- Remote Super/Command becomes Ctrl; Omarchy Super binds ignore this keyboard.
+hl.device({
+  name = "hl-virtual-keyboard-hypr-rdp",
+  kb_options = "altwin:ctrl_win",
+  keybinds = false,
+})
+%s
+""" % (HYPR_MARK_BEGIN, HYPR_MARK_END)
+EVAL_REMAP_ON = (
+    'hl.device({ name = "hl-virtual-keyboard-hypr-rdp", keybinds = false, '
+    'kb_options = "altwin:ctrl_win" })'
+)
+EVAL_REMAP_OFF = (
+    'hl.device({ name = "hl-virtual-keyboard-hypr-rdp", keybinds = true, '
+    'kb_options = "compose:caps,shift:both_capslock_cancel" })'
+)
+STATE_PARTS = [".local", "state", "io.github.ruegen.rdp-monitor"]
+PEERS_NAME = "peers"
+BANNER_NAME = "banner.json"
+KEYMAP_NAME = "keymap"
+_COMPONENT = re.compile(r"[A-Za-z0-9._-]+")
+_GREEN = re.compile(r'^\s*green\s*=\s*["\']?(#[0-9A-Fa-f]{6})')
+_IPV4 = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$")
+
+
+def _ok_component(name):
+    return bool(_COMPONENT.fullmatch(name)) and name not in (".", "..")
+
+
+_BIDI = frozenset({0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069})
+
+
+def sanitize(value, limit=MAX_STR):
+    out = []
+    for ch in str(value or ""):
+        o = ord(ch)
+        if ch in "<>&\"'" or o < 32 or 0x7F <= o <= 0x9F or o in _BIDI:
+            continue
+        out.append(ch)
+        if len(out) >= limit:
+            break
+    return "".join(out)
+
+
+def valid_port(value):
+    if isinstance(value, int):
+        n = value
+    elif isinstance(value, str) and value.isdigit():
+        n = int(value, 10)
+    else:
+        return False
+    return 1 <= n <= 65535
+
+
+def valid_ip(ip):
+    if not ip or len(ip) > 45:
+        return False
+    if ip.startswith("127.") or ip in (":1", "::1"):
+        return False
+    if _IPV4.fullmatch(ip):
+        return all(0 <= int(p) <= 255 for p in ip.split("."))
+    if not re.fullmatch(r"[0-9A-Fa-f:]+", ip):
+        return False
+    return ":" in ip
+
+
+def peer_ip(peer):
+    if peer.startswith("[") and "]:" in peer:
+        ip = peer[1:peer.index("]")]
+    else:
+        ip = peer.rsplit(":", 1)[0]
+    if ip.lower().startswith("::ffff:"):
+        ip = ip[7:]
+    return ip if valid_ip(ip) else None
+
+
+def local_is_rdp(addr, port):
+    return addr.endswith(":" + str(port)) or addr.endswith("]:" + str(port))
+
+
+def open_dir_chain(parts, create=True, chmod_leaf=True):
+    if not parts or not all(_ok_component(p) for p in parts):
+        raise PermissionError("refusing directory chain")
+    home = pwd.getpwuid(os.geteuid()).pw_dir
+    fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for i, name in enumerate(parts):
+            try:
+                nfd = os.open(
+                    name,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    dir_fd=fd,
+                )
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(name, 0o700, dir_fd=fd)
+                except FileExistsError:
+                    pass
+                nfd = os.open(
+                    name,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    dir_fd=fd,
+                )
+            os.close(fd)
+            fd = nfd
+            st = os.fstat(fd)
+            if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid():
+                raise PermissionError("untrusted directory component %s" % name)
+            if chmod_leaf and i == len(parts) - 1 and st.st_mode & 0o077:
+                os.fchmod(fd, 0o700)
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def repair_leaf(dirfd):
+    for entry in os.listdir(dirfd):
+        if not _ok_component(entry):
+            continue
+        try:
+            st = os.lstat(entry, dir_fd=dirfd)
+        except OSError:
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            try:
+                if stat.S_ISDIR(st.st_mode):
+                    os.rmdir(entry, dir_fd=dirfd)
+                else:
+                    os.unlink(entry, dir_fd=dirfd)
+            except OSError:
+                pass
+            continue
+        if st.st_uid == os.geteuid() and st.st_mode & 0o077:
+            try:
+                fd = os.open(entry, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dirfd)
+                try:
+                    os.fchmod(fd, 0o600)
+                finally:
+                    os.close(fd)
+            except OSError:
+                pass
+
+
+def read_bounded(dirfd, name, max_bytes=MAX_STATE, require_private=True):
+    try:
+        fd = os.open(
+            name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            dir_fd=dirfd,
+        )
+    except FileNotFoundError:
+        return None
+    try:
+        st = os.fstat(fd)
+        extra = st.st_mode & 0o077 if require_private else st.st_mode & 0o002
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or st.st_nlink != 1
+            or extra
+            or st.st_size > max_bytes
+        ):
+            raise PermissionError("refusing file %s" % name)
+        if require_private and st.st_uid != os.geteuid():
+            raise PermissionError("refusing file %s" % name)
+        os.set_blocking(fd, True)
+        data = b""
+        while len(data) <= max_bytes:
+            chunk = os.read(fd, min(4096, max_bytes + 1 - len(data)))
+            if not chunk:
+                break
+            data += chunk
+        if len(data) > max_bytes:
+            raise PermissionError("file grew past the limit")
+        return data
+    finally:
+        os.close(fd)
+
+
+def write_atomic(dirfd, name, data):
+    if len(data) > MAX_STATE:
+        raise ValueError("payload too large")
+    tmp = ".%s.%s.tmp" % (name, os.urandom(8).hex())
+    fd = os.open(
+        tmp,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+        0o600,
+        dir_fd=dirfd,
+    )
+    try:
+        os.fchmod(fd, 0o600)
+        view = memoryview(data)
+        while view:
+            n = os.write(fd, view)
+            view = view[n:]
+        os.fsync(fd)
+        os.rename(tmp, name, src_dir_fd=dirfd, dst_dir_fd=dirfd)
+        os.fsync(dirfd)
+    except BaseException:
+        try:
+            os.unlink(tmp, dir_fd=dirfd)
+        except OSError:
+            pass
+        raise
+    finally:
+        os.close(fd)
+
+
+def state_dir():
+    fd = open_dir_chain(STATE_PARTS, create=True, chmod_leaf=True)
+    repair_leaf(fd)
+    return fd
+
+
+def run_capped(argv, max_bytes=MAX_CMD, deadline=2.0):
+    if not argv or not os.path.isfile(argv[0]):
+        return b""
+    proc = subprocess.Popen(
+        argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    fd = proc.stdout.fileno()
+    os.set_blocking(fd, False)
+    data = b""
+    end = time.monotonic() + deadline
+
+    def stop(sig):
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            pass
+
+    try:
+        while True:
+            remaining = end - time.monotonic()
+            if remaining <= 0:
+                stop(signal.SIGTERM)
+                time.sleep(0.05)
+                stop(signal.SIGKILL)
+                break
+            ready, _, _ = select.select([fd], [], [], remaining)
+            if not ready:
+                continue
+            chunk = os.read(fd, min(4096, max_bytes + 1 - len(data)))
+            if not chunk:
+                break
+            data += chunk
+            if len(data) > max_bytes:
+                stop(signal.SIGTERM)
+                time.sleep(0.05)
+                stop(signal.SIGKILL)
+                raise PermissionError("command output exceeded limit")
+        try:
+            proc.wait(timeout=0.4)
+        except subprocess.TimeoutExpired:
+            stop(signal.SIGKILL)
+            proc.wait()
+    finally:
+        try:
+            proc.stdout.close()
+        except OSError:
+            pass
+    return data
+
+
+def notify(title, body):
+    title = sanitize(title, 80)
+    body = sanitize(body, 64)
+    for cmd in (
+        [NOTIFY, "--app-name", "hypr-rdp", title, body],
+        [NOTIFY_FALLBACK, "-a", "hypr-rdp", title, body],
+    ):
+        if os.path.isfile(cmd[0]):
+            subprocess.Popen(
+                cmd,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return
+
+
+def theme_green():
+    # Only openat(O_NOFOLLOW). If current/theme is a symlink, skip (Color.accent).
+    current = None
+    theme_fd = None
+    try:
+        current = open_dir_chain(
+            [".local", "state", "omarchy", "current"],
+            create=False,
+            chmod_leaf=False,
+        )
+        theme_fd = os.open(
+            "theme",
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=current,
+        )
+        raw = read_bounded(theme_fd, "colors.toml", MAX_THEME, require_private=False)
+    except (OSError, PermissionError):
+        return ""
+    finally:
+        if theme_fd is not None:
+            os.close(theme_fd)
+        if current is not None:
+            os.close(current)
+    if not raw:
+        return ""
+    for line in raw.decode("utf-8", "replace").splitlines():
+        m = _GREEN.match(line)
+        if m:
+            return m.group(1)
+    return ""
+
+
+def read_listening_port():
+    try:
+        raw = run_capped([SS, "-Htlpn"], max_bytes=MAX_CMD, deadline=2.0)
+    except (OSError, PermissionError):
+        return None
+    for line in raw.decode("utf-8", "replace").splitlines():
+        if "hypr-rdp" not in line:
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        addr = parts[-2]
+        port = addr.rsplit(":", 1)[-1]
+        if valid_port(port):
+            return int(port, 10)
+    return None
+
+
+def resolve_port(arg):
+    if valid_port(arg):
+        return int(arg, 10) if isinstance(arg, str) else int(arg)
+    return read_listening_port() or 3389
+
+
+def parse_ips(port):
+    try:
+        raw = run_capped([SS, "-Htn", "state", "established"], max_bytes=MAX_CMD, deadline=2.0)
+    except (OSError, PermissionError):
+        return []
+    found = []
+    for line in raw.decode("utf-8", "replace").splitlines()[:64]:
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        local, peer = parts[-2], parts[-1]
+        if not local_is_rdp(local, port):
+            continue
+        ip = peer_ip(peer)
+        if ip and ip not in found:
+            found.append(ip)
+        if len(found) >= 8:
+            break
+    return found
+
+
+def emit(payload):
+    text = json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
+    if len(text) > 1024:
+        raise PermissionError("status document too large")
+    sys.stdout.write(text + "\n")
+
+
+def parse_status_args(argv):
+    port = ""
+    remap = True
+    for a in argv:
+        if a == "remap":
+            remap = True
+        elif a == "noremap":
+            remap = False
+        elif valid_port(a):
+            port = a
+        else:
+            sys.exit(2)
+    return port, remap
+
+
+def hypr_eval(code):
+    run_capped([HYPRCTL, "eval", code], max_bytes=4096, deadline=2.0)
+
+
+def hypr_reload():
+    run_capped([HYPRCTL, "reload"], max_bytes=4096, deadline=5.0)
+    err = run_capped([HYPRCTL, "configerrors"], max_bytes=4096, deadline=2.0)
+    return err.strip() == b""
+
+
+def sync_hypr_remap(enable):
+    """Install or remove the marked Hyprland snippet. Constant Lua only."""
+    try:
+        dfd = open_dir_chain([".config", "hypr"], create=False, chmod_leaf=False)
+    except OSError:
+        return
+    changed = False
+    backup = None
+    try:
+        raw = read_bounded(dfd, "hyprland.lua", 131072, require_private=False)
+        if raw is None:
+            return
+        text = raw.decode("utf-8", "strict")
+        backup = raw
+        has = HYPR_MARK_BEGIN in text and HYPR_MARK_END in text
+        if enable and not has:
+            needle = 'require("hypr.input")\n'
+            block = "%s\n%s\n%s\n" % (HYPR_MARK_BEGIN, HYPR_REQUIRE, HYPR_MARK_END)
+            if needle in text:
+                text = text.replace(needle, needle + block, 1)
+            else:
+                text = text.rstrip() + "\n" + block
+            write_atomic(dfd, "hyprland.lua", text.encode("utf-8"))
+            write_atomic(dfd, "rdp-monitor.lua", HYPR_SNIPPET.encode("utf-8"))
+            changed = True
+        elif enable and has:
+            try:
+                current = read_bounded(dfd, "rdp-monitor.lua", 4096, require_private=False)
+            except PermissionError:
+                current = None
+            if current != HYPR_SNIPPET.encode("utf-8"):
+                write_atomic(dfd, "rdp-monitor.lua", HYPR_SNIPPET.encode("utf-8"))
+                changed = True
+        elif (not enable) and has:
+            start = text.find(HYPR_MARK_BEGIN)
+            end = text.find(HYPR_MARK_END)
+            if start != -1 and end != -1 and end > start:
+                end += len(HYPR_MARK_END)
+                while end < len(text) and text[end] == "\n":
+                    end += 1
+                text = text[:start] + text[end:]
+                write_atomic(dfd, "hyprland.lua", text.encode("utf-8"))
+            try:
+                os.unlink("rdp-monitor.lua", dir_fd=dfd)
+            except FileNotFoundError:
+                pass
+            changed = True
+        if changed and not hypr_reload() and backup is not None:
+            write_atomic(dfd, "hyprland.lua", backup)
+            hypr_reload()
+    except (OSError, PermissionError, ValueError, UnicodeError):
+        if backup is not None:
+            try:
+                write_atomic(dfd, "hyprland.lua", backup)
+                hypr_reload()
+            except (OSError, PermissionError):
+                pass
+    finally:
+        os.close(dfd)
+
+
+def apply_live_remap(enable):
+    try:
+        hypr_eval(EVAL_REMAP_ON if enable else EVAL_REMAP_OFF)
+    except (OSError, PermissionError):
+        pass
+
+
+def cmd_status(argv):
+    port_arg, remap = parse_status_args(argv)
+    port = resolve_port(port_arg)
+    green = theme_green()
+    current = parse_ips(port)
+    sync_hypr_remap(remap)
+    wanted = "on" if remap and current else "off"
+    dirfd = state_dir()
+    try:
+        prev_map = (read_bounded(dirfd, KEYMAP_NAME) or b"").decode("ascii", "replace").strip()
+        if prev_map != wanted:
+            apply_live_remap(wanted == "on")
+            write_atomic(dirfd, KEYMAP_NAME, (wanted + "\n").encode("ascii"))
+        raw = read_bounded(dirfd, PEERS_NAME) or b""
+        prev = []
+        for line in raw.decode("utf-8", "replace").splitlines():
+            ip = sanitize(line.strip(), 45)
+            if valid_ip(ip) and ip not in prev:
+                prev.append(ip)
+        if not current:
+            if prev:
+                notify("Remote Desktop Protocol session ended", prev[0])
+            try:
+                os.unlink(PEERS_NAME, dir_fd=dirfd)
+            except FileNotFoundError:
+                pass
+            emit({
+                "text": "",
+                "tooltip": "Remote Desktop Protocol — no session",
+                "class": "disconnected",
+                "port": port,
+                "green": green,
+            })
+            return
+        if current != prev:
+            notify("Remote Desktop Protocol session started", current[0])
+        write_atomic(dirfd, PEERS_NAME, ("\n".join(current) + "\n").encode("ascii"))
+        first = current[0]
+        emit({
+            "text": first,
+            "tooltip": "Remote Desktop Protocol\n" + first,
+            "class": "connected",
+            "port": port,
+            "green": green,
+        })
+    finally:
+        os.close(dirfd)
+
+
+def cmd_banner_get():
+    dirfd = state_dir()
+    try:
+        raw = read_bounded(dirfd, BANNER_NAME)
+        if not raw:
+            emit({})
+            return
+        data = json.loads(raw.decode("utf-8", "strict"))
+        if not isinstance(data, dict):
+            emit({})
+            return
+        x, y = data.get("x"), data.get("y")
+        if isinstance(x, (int, float)) and isinstance(y, (int, float)) and abs(x) <= 100000 and abs(y) <= 100000:
+            emit({"x": int(x), "y": int(y)})
+        else:
+            emit({})
+    except (OSError, PermissionError, ValueError, json.JSONDecodeError):
+        emit({})
+    finally:
+        os.close(dirfd)
+
+
+def cmd_banner_set(argv):
+    if len(argv) != 2 or not re.fullmatch(r"-?\d{1,6}", argv[0]) or not re.fullmatch(r"-?\d{1,6}", argv[1]):
+        sys.exit(2)
+    x, y = int(argv[0], 10), int(argv[1], 10)
+    dirfd = state_dir()
+    try:
+        write_atomic(dirfd, BANNER_NAME, (json.dumps({"x": x, "y": y}) + "\n").encode("ascii"))
+    finally:
+        os.close(dirfd)
+
+
+def cmd_banner_clear():
+    dirfd = state_dir()
+    try:
+        write_atomic(dirfd, BANNER_NAME, b"{}\n")
+    finally:
+        os.close(dirfd)
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(2)
+    op, rest = sys.argv[1], sys.argv[2:]
+    if op == "status":
+        cmd_status(rest)
+    elif op == "banner-get":
+        cmd_banner_get()
+    elif op == "banner-set":
+        cmd_banner_set(rest)
+    elif op == "banner-clear":
+        cmd_banner_clear()
+    else:
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

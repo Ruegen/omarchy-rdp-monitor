@@ -21,18 +21,16 @@ BarWidget {
     if (!root.connected || !panelLoader.item) return ""
     return String(panelLoader.item.label || "")
   }
-
-  // Theme `green` from colors.toml. Color.urgent / bar.active are red.
-  property color themeGreen: Color.accent
-
-  function parseThemeGreen(raw) {
-    var lines = String(raw || "").split("\n")
-    for (var i = 0; i < lines.length; i++) {
-      var m = lines[i].match(/^\s*green\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
-      if (m) return m[1]
-    }
-    return ""
+  property string helperPath: {
+    var u = String(Qt.resolvedUrl("rdp-helper"))
+    if (u.indexOf("file://") === 0)
+      u = u.substring(7)
+    return u
   }
+
+  property color themeGreen: Color.accent
+  property string bannerBuf: ""
+  property string bannerErr: ""
 
   visible: root.connected
   implicitWidth: root.connected ? button.implicitWidth : 0
@@ -46,6 +44,13 @@ BarWidget {
   readonly property real bannerH: bannerCard.implicitHeight
   readonly property real placedX: bannerX < 0 ? defaultBannerX() : clampX(bannerX)
   readonly property real placedY: bannerY < 0 ? defaultBannerY() : clampY(bannerY)
+
+  function helperCommand(args) {
+    var cmd = ["/usr/bin/python3", "-I", "-S", root.helperPath]
+    for (var i = 0; i < args.length; i++)
+      cmd.push(args[i])
+    return cmd
+  }
 
   function open() {
     if (panelLoader.item) panelLoader.item.open()
@@ -106,29 +111,52 @@ BarWidget {
     bannerCard.y = root.placedY
   }
 
+  function applyBannerJson(raw) {
+    try {
+      var data = JSON.parse(String(raw || "").trim() || "{}")
+      if (data && isFinite(data.x) && isFinite(data.y)) {
+        root.bannerX = Number(data.x)
+        root.bannerY = Number(data.y)
+      }
+    } catch (e) {}
+    Qt.callLater(root.applyBannerPos)
+  }
+
+  function loadBannerPos() {
+    if (bannerRead.running) return
+    root.bannerBuf = ""
+    root.bannerErr = ""
+    bannerRead.command = root.helperCommand(["banner-get"])
+    bannerRead.running = true
+  }
+
   function saveBannerPos() {
     root.bannerX = root.clampX(bannerCard.x)
     root.bannerY = root.clampY(bannerCard.y)
     bannerCard.x = root.bannerX
     bannerCard.y = root.bannerY
-    posFile.setText(JSON.stringify({ x: root.bannerX, y: root.bannerY }) + "\n")
+    bannerWrite.command = root.helperCommand([
+      "banner-set", String(root.bannerX), String(root.bannerY)
+    ])
+    bannerWrite.running = true
   }
 
   function resetBannerPos() {
     root.bannerX = -1
     root.bannerY = -1
-    posFile.setText("{}\n")
+    bannerWrite.command = root.helperCommand(["banner-clear"])
+    bannerWrite.running = true
     root.applyBannerPos()
   }
 
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
+  Component.onCompleted: root.loadBannerPos()
 
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // nf-md-remote-desktop — theme green while a session is active
     text: "󰢹"
     tooltipText: root.tooltipText
     active: false
@@ -151,40 +179,46 @@ BarWidget {
     }
   }
 
-  FileView {
-    id: themeColorsFile
-    path: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
-    watchChanges: true
-    printErrors: false
-    onLoaded: {
-      var green = root.parseThemeGreen(text())
-      root.themeGreen = green.length > 0 ? green : Color.accent
-    }
-    onFileChanged: reload()
-    onLoadFailed: root.themeGreen = Color.accent
-  }
-
-  FileView {
-    id: posFile
-    path: Quickshell.env("HOME") + "/.local/state/omarchy/rdp-banner.json"
-    watchChanges: false
-    atomicWrites: true
-    printErrors: false
-    onLoaded: {
-      try {
-        var data = JSON.parse(String(text() || "{}"))
-        if (isFinite(data.x) && isFinite(data.y)) {
-          root.bannerX = Number(data.x)
-          root.bannerY = Number(data.y)
+  Process {
+    id: bannerRead
+    command: root.helperCommand(["banner-get"])
+    running: false
+    stdout: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        root.bannerBuf += chunk
+        if (root.bannerBuf.length > 256) {
+          bannerRead.signal(15)
+          root.bannerBuf = ""
         }
-      } catch (e) {}
-      Qt.callLater(root.applyBannerPos)
+      }
     }
-    onLoadFailed: Qt.callLater(root.applyBannerPos)
+    stderr: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        root.bannerErr += chunk
+        if (root.bannerErr.length > 256) {
+          bannerRead.signal(15)
+          root.bannerErr = ""
+        }
+      }
+    }
+    onExited: function(code) {
+      if (code === 0)
+        root.applyBannerJson(root.bannerBuf)
+      else
+        Qt.callLater(root.applyBannerPos)
+      root.bannerBuf = ""
+      root.bannerErr = ""
+    }
   }
 
-  // Fullscreen host stays put so the pointer grab survives. Only the card
-  // moves; the rest of the surface is click-through.
+  Process {
+    id: bannerWrite
+    command: root.helperCommand(["banner-clear"])
+    running: false
+  }
+
   PanelWindow {
     id: observeBanner
     visible: root.connected
@@ -217,6 +251,7 @@ BarWidget {
         spacing: Style.space(10)
 
         Text {
+          textFormat: Text.PlainText
           text: "󰢹"
           color: root.themeGreen
           font.family: Style.font.family
@@ -224,6 +259,7 @@ BarWidget {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: root.controllerIp.length > 0
             ? "This computer is being controlled remotely · " + root.controllerIp
             : "This computer is being controlled remotely"

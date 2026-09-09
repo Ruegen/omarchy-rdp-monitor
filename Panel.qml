@@ -17,8 +17,9 @@ Panel {
     if (!isFinite(n) || n < 1 || n > 65535) return 0
     return n
   }
-  property string scriptPath: {
-    var u = String(Qt.resolvedUrl("rdp-connection"))
+  readonly property bool remapSuper: !(settings && settings.remapSuper === false)
+  property string helperPath: {
+    var u = String(Qt.resolvedUrl("rdp-helper"))
     if (u.indexOf("file://") === 0)
       u = u.substring(7)
     return u
@@ -28,11 +29,37 @@ Panel {
   property string connectionText: "No active session"
   property string connectionIps: "Waiting for a connection"
   property string connectionStatus: "disconnected"
+  property string statusBuf: ""
+  property string statusErr: ""
+  readonly property int statusMax: 1024
+  readonly property int statusErrMax: 256
   readonly property bool connected: connectionStatus === "connected"
   readonly property color themeGreen: hostWidget && hostWidget.themeGreen
     ? hostWidget.themeGreen
     : Color.accent
   readonly property color statusColor: connected ? themeGreen : root.barForeground
+
+  function safeText(s, maxLen) {
+    var t = String(s || "")
+    var out = ""
+    for (var i = 0; i < t.length && out.length < maxLen; i++) {
+      var c = t.charAt(i)
+      var o = t.charCodeAt(i)
+      if (c === "<" || c === ">" || c === "&" || o < 32 || (o >= 0x7F && o <= 0x9F)
+          || o === 0x202A || o === 0x202B || o === 0x202C || o === 0x202D || o === 0x202E
+          || o === 0x2066 || o === 0x2067 || o === 0x2068 || o === 0x2069)
+        continue
+      out += c
+    }
+    return out
+  }
+
+  function helperCommand(args) {
+    var cmd = ["/usr/bin/python3", "-I", "-S", root.helperPath]
+    for (var i = 0; i < args.length; i++)
+      cmd.push(args[i])
+    return cmd
+  }
 
   function open() {
     root.controller.show()
@@ -61,13 +88,22 @@ Panel {
   function applyStatus(raw) {
     try {
       var data = JSON.parse(String(raw || "").trim() || "{}")
-      var text = String(data.text || "")
-      var tip = String(data.tooltip || "")
+      if (data === null || typeof data !== "object")
+        return
       var klass = String(data.class || "disconnected")
+      if (klass !== "connected" && klass !== "disconnected")
+        klass = "disconnected"
+      var text = root.safeText(data.text || "", 45)
+      var tip = root.safeText(String(data.tooltip || "").replace(/\\n/g, "\n"), 120)
+      var green = root.safeText(data.green || "", 7)
+      if (!/^#[0-9A-Fa-f]{6}$/.test(green))
+        green = ""
+      if (root.hostWidget && green.length > 0)
+        root.hostWidget.themeGreen = green
       root.connectionStatus = klass
       if (klass === "connected" && text.length > 0) {
         root.label = text
-        root.tooltipText = tip.replace(/\\n/g, "\n") || ("Remote Desktop Protocol\n" + text)
+        root.tooltipText = tip || ("Remote Desktop Protocol\n" + text)
         root.connectionText = "A remote session is active"
         root.connectionIps = text
       } else {
@@ -77,28 +113,62 @@ Panel {
         root.connectionIps = "Waiting for a connection"
       }
     } catch (e) {
-      console.error("Failed to parse remote desktop status: " + e)
+      console.error("Failed to parse remote desktop status")
       root.connectionIps = "Error parsing data"
     }
   }
 
   function pollNow() {
     if (statusProc.running) return
+    root.statusBuf = ""
+    root.statusErr = ""
+    var remap = root.remapSuper ? "remap" : "noremap"
     if (root.configuredPort > 0)
-      statusProc.command = ["bash", root.scriptPath, String(root.configuredPort)]
+      statusProc.command = root.helperCommand(["status", String(root.configuredPort), remap])
     else
-      statusProc.command = ["bash", root.scriptPath]
+      statusProc.command = root.helperCommand(["status", remap])
     statusProc.running = true
   }
 
   Process {
     id: statusProc
-    command: ["bash", root.scriptPath]
+    command: root.helperCommand(["status", "remap"])
     running: false
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyStatus(text)
+    stdout: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        root.statusBuf += chunk
+        if (root.statusBuf.length > root.statusMax) {
+          statusProc.signal(15)
+          statusKill.start()
+          root.statusBuf = ""
+        }
+      }
     }
+    stderr: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        root.statusErr += chunk
+        if (root.statusErr.length > root.statusErrMax) {
+          statusProc.signal(15)
+          statusKill.start()
+          root.statusErr = ""
+        }
+      }
+    }
+    onExited: function(code) {
+      if (code === 0)
+        root.applyStatus(root.statusBuf)
+      root.statusBuf = ""
+      root.statusErr = ""
+    }
+  }
+
+  Timer {
+    id: statusKill
+    interval: 2000
+    repeat: false
+    onTriggered: statusProc.signal(9)
   }
 
   Timer {
@@ -108,6 +178,8 @@ Panel {
     triggeredOnStart: true
     onTriggered: root.pollNow()
   }
+
+  Component.onDestruction: statusProc.signal(15)
 
   KeyboardPanel {
     id: panel
@@ -132,6 +204,7 @@ Panel {
 
         Text {
           width: parent.width
+          textFormat: Text.PlainText
           text: "Remote Desktop Protocol"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -142,6 +215,7 @@ Panel {
 
         Text {
           width: parent.width
+          textFormat: Text.PlainText
           text: root.connectionText
           color: root.statusColor
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -151,6 +225,7 @@ Panel {
 
         Text {
           width: parent.width
+          textFormat: Text.PlainText
           text: root.connectionIps
           color: root.statusColor
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
