@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "io.github.ruegen.rdp-monitor",
-  "name": "Remote Desktop Protocol",
-  "version": "1.6.0",
+  "name": "Omarchy RDP Monitor",
+  "version": "1.6.1",
   "description": "Shows when someone is controlling this machine over Remote Desktop Protocol, and notifies on connect",
   "author": "ruegen",
   "homepage": "https://github.com/ruegen/omarchy-rdp-monitor",
@@ -12,7 +12,7 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Remote Desktop Protocol",
+    "displayName": "Omarchy RDP Monitor",
     "category": "Network",
     "allowMultiple": false,
     "defaultSection": "right",

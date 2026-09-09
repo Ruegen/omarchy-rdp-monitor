@@ -1,10 +1,10 @@
-# Remote Desktop Protocol
+# Omarchy RDP Monitor
 
 A small Omarchy bar icon that tells you when someone is controlling this computer over **Remote Desktop Protocol** — the same protocol Microsoft Remote Desktop, Windows App, Remmina, and FreeRDP use.
 
 ![Preview](preview.png)
 
-The bar icon and status text use the theme green while a session is active. The panel title is **Remote Desktop Protocol**.
+The bar icon and status text use the theme green while a session is active. The panel title is **Omarchy RDP Monitor**.
 
 **Copy and paste just works from a Mac or PC.** Omarchy’s Super hotkeys normally collide with Command (Mac) and the Windows key. This plugin remaps Super / Command / Win to **Ctrl** on the remote keyboard only, so Command-C and Ctrl-C reach the app instead of the compositor. Your physical keyboard is unchanged.
 

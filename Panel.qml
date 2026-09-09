@@ -25,7 +25,7 @@ Panel {
     return u
   }
   property string label: ""
-  property string tooltipText: "Remote Desktop Protocol — no session"
+  property string tooltipText: "Omarchy RDP Monitor — no session"
   property string connectionText: "No active session"
   property string connectionIps: "Waiting for a connection"
   property string connectionStatus: "disconnected"
@@ -103,12 +103,12 @@ Panel {
       root.connectionStatus = klass
       if (klass === "connected" && text.length > 0) {
         root.label = text
-        root.tooltipText = tip || ("Remote Desktop Protocol\n" + text)
+        root.tooltipText = tip || ("Omarchy RDP Monitor\n" + text)
         root.connectionText = "A remote session is active"
         root.connectionIps = text
       } else {
         root.label = ""
-        root.tooltipText = "Remote Desktop Protocol — no session"
+        root.tooltipText = "Omarchy RDP Monitor — no session"
         root.connectionText = "No active session"
         root.connectionIps = "Waiting for a connection"
       }
@@ -205,7 +205,7 @@ Panel {
         Text {
           width: parent.width
           textFormat: Text.PlainText
-          text: "Remote Desktop Protocol"
+          text: "Omarchy RDP Monitor"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle

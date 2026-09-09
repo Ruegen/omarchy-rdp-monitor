@@ -15,7 +15,7 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelLoader.item
     ? panelLoader.item.popoutSwitchClosing === true
     : false
-  readonly property string tooltipText: panelLoader.item ? panelLoader.item.tooltipText : "Remote Desktop Protocol"
+  readonly property string tooltipText: panelLoader.item ? panelLoader.item.tooltipText : "Omarchy RDP Monitor"
   readonly property bool connected: panelLoader.item ? panelLoader.item.connected : false
   readonly property string controllerIp: {
     if (!root.connected || !panelLoader.item) return ""

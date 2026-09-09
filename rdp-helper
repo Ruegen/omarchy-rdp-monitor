@@ -508,26 +508,26 @@ def cmd_status(argv):
                 prev.append(ip)
         if not current:
             if prev:
-                notify("Remote Desktop Protocol session ended", prev[0])
+                notify("Omarchy RDP Monitor session ended", prev[0])
             try:
                 os.unlink(PEERS_NAME, dir_fd=dirfd)
             except FileNotFoundError:
                 pass
             emit({
                 "text": "",
-                "tooltip": "Remote Desktop Protocol — no session",
+                "tooltip": "Omarchy RDP Monitor — no session",
                 "class": "disconnected",
                 "port": port,
                 "green": green,
             })
             return
         if current != prev:
-            notify("Remote Desktop Protocol session started", current[0])
+            notify("Omarchy RDP Monitor session started", current[0])
         write_atomic(dirfd, PEERS_NAME, ("\n".join(current) + "\n").encode("ascii"))
         first = current[0]
         emit({
             "text": first,
-            "tooltip": "Remote Desktop Protocol\n" + first,
+            "tooltip": "Omarchy RDP Monitor\n" + first,
             "class": "connected",
             "port": port,
             "green": green,
